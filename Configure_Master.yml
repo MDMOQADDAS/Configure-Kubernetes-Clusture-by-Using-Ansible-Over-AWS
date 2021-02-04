@@ -1,0 +1,50 @@
+- hosts: tag_Name_Master
+  tasks:
+  - name: "Installing docker"        
+    package:
+          name: "docker"
+          state: present
+  - name: "Configure the some repo of docker"
+    copy:
+          src: "daemon.json"
+          dest: "/etc/docker/daemon.json"
+  - name: "Starting the docker service"
+    service:
+          name: "docker"
+          state: started
+  - name: "Configuring the repo for download the kubeadm"
+    template:
+          src: "kubeadm.repo"
+          dest: "/etc/yum.repos.d/kubeadm.repo"
+  - name: "Checking kubeadm install or not?"
+    command: "rpm -q kubeadm"
+    register: check1
+    ignore_errors: yes
+  - name: "Downloading the kubeadm package"
+    shell: "yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes"
+    when: check1.rc!=0
+  - name: "Start the service of kubelet"
+    service:
+          name: "kubelet"
+          state: started
+  - name: "To pull require images"
+    command: "kubeadm config images pull"
+  - name: "Installing the iproute-tc package"
+    package:
+          name: "iproute-tc"
+          state: present
+  - name: "Initializing the clusture"
+    shell: "kubeadm init --pod-network-cidr=10.244.0.0/16 
+            --ignore-preflight-errors=NumCPU  --ignore-preflight-errors=Mem"
+    ignore_errors: yes
+  - name: "Creating the directory"
+    file:
+         name: "$HOME/.kube"
+         state: directory
+  - name: "Doing some required thing"
+    command: "cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
+    ignore_errors: yes
+  - name: "Doing some required thing"
+    shell: "chown $(id -u):$(id -g) $HOME/.kube/config"
+  - name: "AT last ready the clusture"
+    shell: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
